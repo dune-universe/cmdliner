@@ -22,31 +22,12 @@ maintainer: "Daniel Bünzli <daniel.buenzl i@erratique.ch>"
 authors: "The cmdliner programmers"
 license: "ISC"
 tags: ["cli" "system" "declarative" "org:erratique"]
-homepage: "https://erratique.ch/software/cmdliner"
-doc: "https://erratique.ch/software/cmdliner/doc"
+homepage: "https://github.com/dune-universe/cmdliner"
 bug-reports: "https://github.com/dbuenzli/cmdliner/issues"
 depends: [
+  "dune"
   "ocaml" {>= "4.08.0"}
 ]
-build: [make "all" "PREFIX=%{prefix}%"]
-install: [
-  [
-    make
-    "install"
-    "BINDIR=%{_:bin}%"
-    "LIBDIR=%{_:lib}%"
-    "DOCDIR=%{_:doc}%"
-    "SHAREDIR=%{share}%"
-    "MANDIR=%{man}%"
-  ]
-  [
-    make
-    "install-doc"
-    "LIBDIR=%{_:lib}%"
-    "DOCDIR=%{_:doc}%"
-    "SHAREDIR=%{share}%"
-    "MANDIR=%{man}%"
-  ]
-]
-dev-repo: "git+https://erratique.ch/repos/cmdliner.git"
+build: [ "dune" "build" "-p" name "-j" jobs ]
+dev-repo: "git+https://github.com/dune-universe/cmdliner.git"
 x-maintenance-intent: ["(latest)"]
