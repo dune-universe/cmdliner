@@ -1,4 +1,7 @@
-(* Example from the documentation, this code is in public domain. *)
+(*---------------------------------------------------------------------------
+   Copyright (c) 2011 The cmdliner programmers. All rights reserved.
+   SPDX-License-Identifier: CC0-1.0
+  ---------------------------------------------------------------------------*)
 
 (* Implementations, just print the args. *)
 
@@ -27,16 +30,18 @@ let help copts man_format cmds topic = match topic with
 | None -> `Help (`Pager, None) (* help about the program. *)
 | Some topic ->
     let topics = "topics" :: "patterns" :: "environment" :: cmds in
-    let conv, _ = Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
-    match conv topic with
-    | `Error e -> `Error (false, e)
-    | `Ok t when t = "topics" -> List.iter print_endline topics; `Ok ()
-    | `Ok t when List.mem t cmds -> `Help (man_format, Some t)
-    | `Ok t ->
+    let conv = Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
+    let parse = Cmdliner.Arg.Conv.parser conv in
+    match parse topic with
+    | Error e -> `Error (false, e)
+    | Ok t when t = "topics" -> List.iter print_endline topics; `Ok ()
+    | Ok t when List.mem t cmds -> `Help (man_format, Some t)
+    | Ok t ->
         let page = (topic, 7, "", "", ""), [`S topic; `P "Say something";] in
         `Ok (Cmdliner.Manpage.print man_format Format.std_formatter page)
 
 open Cmdliner
+open Cmdliner.Term.Syntax
 
 (* Help sections common to all commands *)
 
@@ -44,9 +49,9 @@ let help_secs = [
  `S Manpage.s_common_options;
  `P "These options are common to all commands.";
  `S "MORE HELP";
- `P "Use $(mname) $(i,COMMAND) --help for help on a single command.";`Noblank;
- `P "Use $(mname) $(b,help patterns) for help on patch matching."; `Noblank;
- `P "Use $(mname) $(b,help environment) for help on environment variables.";
+ `P "Use $(tool) $(i,COMMAND) --help for help on a single command.";`Noblank;
+ `P "Use $(tool) $(b,help patterns) for help on patch matching."; `Noblank;
+ `P "Use $(tool) $(b,help environment) for help on environment variables.";
  `S Manpage.s_bugs; `P "Check bug reports at http://bugs.example.org.";]
 
 (* Options common to all commands *)
@@ -66,7 +71,7 @@ let copts_t =
     Arg.(last & vflag_all [Normal] [quiet; verbose])
   in
   let prehook =
-    let doc = "Specify command to run before this $(mname) command." in
+    let doc = "Specify command to run before this $(tool) command." in
     Arg.(value & opt (some string) None & info ["prehook"] ~docs ~doc)
   in
   Term.(const copts $ debug $ verb $ prehook)
@@ -88,8 +93,9 @@ let initialize_cmd =
        existing files and subdirectories become …";
     `Blocks help_secs; ]
   in
-  let info = Cmd.info "initialize" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const initialize $ copts_t $ repodir)
+  Cmd.make (Cmd.info "initialize" ~doc ~sdocs ~man) @@
+  let+ copts_t and+ repodir in
+  initialize copts_t repodir
 
 let record_cmd =
   let pname =
@@ -118,9 +124,9 @@ let record_cmd =
          a set of files…";
      `Blocks help_secs; ]
   in
-  let info = Cmd.info "record" ~doc ~sdocs ~man in
-  Cmd.v info
-    Term.(const record $ copts_t $ pname $ author $ all $ ask_deps $ files)
+  Cmd.make (Cmd.info "record" ~doc ~sdocs ~man) @@
+  let+ copts_t and+ pname and+ author and+ all and+ ask_deps and+ files in
+  record copts_t pname author all ask_deps files
 
 let help_cmd =
   let topic =
@@ -133,10 +139,11 @@ let help_cmd =
      `P "Prints help about darcs commands and other subjects…";
      `Blocks help_secs; ]
   in
-  let info = Cmd.info "help" ~doc ~man in
-  Cmd.v info
-    Term.(ret (const help $ copts_t $ Arg.man_format $ Term.choice_names $
-               topic))
+  Cmd.make (Cmd.info "help" ~doc ~man) @@
+  Term.ret @@
+  let+ copts_t and+ man_format = Arg.man_format
+  and+ choice_names = Term.choice_names and+ topic in
+  help copts_t man_format choice_names topic
 
 let main_cmd =
   let doc = "a revision control system" in
@@ -145,4 +152,5 @@ let main_cmd =
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
   Cmd.group info ~default [initialize_cmd; record_cmd; help_cmd]
 
-let () = exit (Cmd.eval main_cmd)
+let main () = Cmd.eval main_cmd
+let () = if !Sys.interactive then () else exit (main ())

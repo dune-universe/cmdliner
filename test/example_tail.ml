@@ -1,4 +1,7 @@
-(* Example from the documentation, this code is in public domain. *)
+(*---------------------------------------------------------------------------
+   Copyright (c) 2011 The cmdliner programmers. All rights reserved.
+   SPDX-License-Identifier: CC0-1.0
+  ---------------------------------------------------------------------------*)
 
 (* Implementation of the command, we just print the args. *)
 
@@ -12,7 +15,7 @@ let loc_str (rev, k) = if rev then str "%d" k else str "+%d" k
 let follow_str = function Name -> "name" | Descriptor -> "descriptor"
 let verb_str = function Verbose -> "verbose" | Quiet -> "quiet"
 
-let tail lines follow verb pid files =
+let tail ~lines ~follow ~verb ~pid files =
   Printf.printf
     "lines = %s\nfollow = %s\nverb = %s\npid = %s\nfiles = %s\n"
     (loc_str lines) (opt_str follow_str follow) (verb_str verb)
@@ -21,17 +24,18 @@ let tail lines follow verb pid files =
 (* Command line interface *)
 
 open Cmdliner
+open Cmdliner.Term.Syntax
 
 let loc_arg =
-  let parse s =
+  let parser s =
     try
       if s <> "" && s.[0] <> '+'
       then Ok (true, int_of_string s)
       else Ok (false, int_of_string (String.sub s 1 (String.length s - 1)))
-    with Failure _ -> Error (`Msg "unable to parse integer")
+    with Failure _ -> Error "unable to parse integer"
   in
-  let print ppf p = Format.fprintf ppf "%s" (loc_str p) in
-  Arg.conv ~docv:"N" (parse, print)
+  let pp ppf p = Format.fprintf ppf "%s" (loc_str p) in
+  Arg.Conv.make ~docv:"N" ~parser ~pp ()
 
 let lines =
   let doc = "Output the last $(docv) lines or use $(i,+)$(docv) to start \
@@ -65,11 +69,11 @@ let pid =
 
 let files = Arg.(value & (pos_all non_dir_file []) & info [] ~docv:"FILE")
 
-let cmd =
+let tail_cmd =
   let doc = "Display the last part of a file" in
   let man = [
     `S Manpage.s_description;
-    `P "$(tname) prints the last lines of each $(i,FILE) to standard output. If
+    `P "$(cmd) prints the last lines of each $(i,FILE) to standard output. If
         no file is specified reads standard input. The number of printed
         lines can be  specified with the $(b,-n) option.";
     `S Manpage.s_bugs;
@@ -77,9 +81,9 @@ let cmd =
     `S Manpage.s_see_also;
     `P "$(b,cat)(1), $(b,head)(1)" ]
   in
-  let info = Cmd.info "tail" ~version:"%%VERSION%%" ~doc ~man in
-  Cmd.v info Term.(const tail $ lines $ follow $ verb $ pid $ files)
+  Cmd.make (Cmd.info "tail" ~version:"%%VERSION%%" ~doc ~man) @@
+  let+ lines and+ follow and+ verb and+ pid and+ files in
+  tail ~lines ~follow ~verb ~pid files
 
-
-let main () = exit (Cmd.eval cmd)
-let () = main ()
+let main () = Cmd.eval tail_cmd
+let () = if !Sys.interactive then () else exit (main ())
